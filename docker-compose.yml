@@ -1,0 +1,62 @@
+services:
+  backend:
+    build:
+      context: ./simple-api-student-main            # your Spring Boot project folder (with its Dockerfile)
+      dockerfile: Dockerfile
+    container_name: backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/db
+      SPRING_DATASOURCE_USERNAME: usr
+      SPRING_DATASOURCE_PASSWORD: pwd
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - app-net
+    ports:
+      - "8080:8080"                   # expose if you want to hit the API directly
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  database:
+    image: postgres:17-alpine         # simplest & reliable
+    container_name: db_proxy
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: usr
+      POSTGRES_PASSWORD: pwd
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usr -d db -h 127.0.0.1 -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  httpd:
+    image: httpd:2.4-alpine
+    container_name: httpd
+    ports:
+      - "8081:80"                     # browse http://localhost:8081
+    networks:
+      - app-net
+    depends_on:
+      backend:
+        condition: service_started
+    volumes:
+      # your static page
+      - ./web/index.html:/usr/local/apache2/htdocs/index.html:ro
+      # reverse-proxy config (serves index.html and proxies API)
+      - ./web/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+
+networks:
+  app-net:
+    driver: bridge
+
+volumes:
+  db_data:

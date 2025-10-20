@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Students · Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b1220; --card:#121a2b; --txt:#e6edf3; --muted:#9fb0c3; --acc:#4cc2ff; --err:#ff6b6b; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:linear-gradient(180deg,#0a0f1e,#0e1526); color:var(--txt); font:16px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif; }
+    header { padding:24px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; max-width:1100px; margin:0 auto; }
+    h1 { margin:0; font-size:20px; letter-spacing:0.3px; }
+    .panel { background:var(--card); border:1px solid #1e2a44; border-radius:14px; padding:14px; display:flex; gap:10px; align-items:center; }
+    input[type="url"] { flex:1; background:#0b1324; border:1px solid #22304f; color:var(--txt); padding:10px 12px; border-radius:10px; min-width:220px; }
+    button { background:var(--acc); color:#00121c; border:none; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; }
+    main { max-width:1100px; margin:0 auto; padding:0 16px 40px; }
+    .card { background:var(--card); border:1px solid #1e2a44; border-radius:14px; overflow:hidden; }
+    .toolbar { display:flex; gap:10px; padding:12px; border-bottom:1px solid #203056; align-items:center; }
+    .status { margin-left:auto; font-size:13px; color:var(--muted); }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; font-size:13px; color:var(--muted); padding:10px 12px; background:#0f1830; border-bottom:1px solid #203056; }
+    tbody td { padding:12px; border-bottom:1px dashed #203056; }
+    tbody tr:hover { background:#0e1730; }
+    .badge { font-size:12px; padding:2px 8px; border-radius:999px; background:#112046; color:#bfe9ff; border:1px solid #244a73; }
+    .error { color:var(--err); font-weight:600; }
+    footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📚 Students</h1>
+    <div class="panel" title="Change the API URL if your backend runs elsewhere">
+      <input id="apiUrl" type="url" placeholder="API URL, e.g. http://localhost:8080/students" />
+      <button id="loadBtn">Load</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="toolbar">
+        <button id="refreshBtn">Refresh</button>
+        <span class="status" id="status">Waiting…</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:80px">ID</th>
+            <th>First name</th>
+            <th>Last name</th>
+            <th style="width:140px">Department</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="4" style="padding:18px;color:#9fb0c3;">No data yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer>
+    Tip: If the API runs on a different origin, enable CORS on your Spring app or proxy /students via your web server.
+  </footer>
+
+  <script>
+    // URL par défaut (garde-la si tu appelles directement le backend)
+    const defaultApi = "http://localhost:8080/students";
+    const apiInput  = document.getElementById("apiUrl");
+    const rows      = document.getElementById("rows");
+    const statusEl  = document.getElementById("status");
+  
+    apiInput.value = localStorage.getItem("apiUrl") || defaultApi;
+  
+    // Normalise les différentes formes de clés et aplatit department -> name
+    function normalizeStudent(s) {
+      const first = s.firstName ?? s.firstname ?? s.first_name ?? "";
+      const last  = s.lastName  ?? s.lastname  ?? s.last_name  ?? "";
+      const dept  = s.department
+        ? (typeof s.department === "object" ? (s.department.name ?? "") : s.department)
+        : "";
+      return { id: s.id ?? "", firstName: first, lastName: last, department: dept };
+    }
+  
+    async function fetchStudents() {
+      const url = apiInput.value.trim() || defaultApi;
+      localStorage.setItem("apiUrl", url);
+      statusEl.textContent = "Loading…";
+      rows.innerHTML = `<tr><td colspan="4" style="padding:18px;color:#9fb0c3;">Loading…</td></tr>`;
+      try {
+        const res = await fetch(url, { headers: { "Accept": "application/json" } });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error("Invalid JSON shape (expected an array).");
+  
+        const list = data.map(normalizeStudent);
+  
+        rows.innerHTML = list.length
+          ? list.map(s => `
+              <tr>
+                <td>${s.id}</td>
+                <td>${escapeHtml(s.firstName)}</td>
+                <td>${escapeHtml(s.lastName)}</td>
+                <td><span class="badge">${escapeHtml(s.department)}</span></td>
+              </tr>
+            `).join("")
+          : `<tr><td colspan="4" style="padding:18px;color:#9fb0c3;">No rows.</td></tr>`;
+  
+        statusEl.textContent = `Loaded ${list.length} row(s) from ${new URL(url).host}`;
+      } catch (err) {
+        rows.innerHTML = `<tr><td colspan="4" class="error" style="padding:18px;">${err.message}</td></tr>`;
+        statusEl.textContent = "Error";
+      }
+    }
+  
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+  
+    document.getElementById("refreshBtn").addEventListener("click", fetchStudents);
+    document.getElementById("loadBtn").addEventListener("click", fetchStudents);
+  
+    // auto-load
+    fetchStudents();
+  </script>
+  
+</body>
+</html>

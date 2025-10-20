@@ -1,0 +1,17 @@
+# -------- Build --------
+FROM mirror.gcr.io/library/maven:3.9-eclipse-temurin-21-alpine AS build
+WORKDIR /opt/myapp
+COPY pom.xml .
+RUN --mount=type=cache,target=/root/.m2 mvn -q -DskipTests dependency:go-offline
+COPY src ./src
+RUN --mount=type=cache,target=/root/.m2 mvn -q -DskipTests package
+
+# -------- Run --------
+FROM mirror.gcr.io/library/eclipse-temurin:21-jre-alpine
+WORKDIR /opt/myapp
+RUN addgroup -S app && adduser -S app -G app
+USER app
+COPY --from=build /opt/myapp/target/*.jar /opt/myapp/app.jar
+EXPOSE 8080
+ENV JAVA_OPTS=""
+ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar /opt/myapp/app.jar"]
