@@ -8,6 +8,7 @@ on:
     branches: ["**"]
 
 jobs:
+${{ github.ref_name == 'main' }}
   test-backend:
     runs-on: ubuntu-24.04
     steps:
@@ -40,7 +41,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 🔐 Login to Docker Hub (set DOCKERHUB_USERNAME & DOCKERHUB_TOKEN in repo Secrets)
+      #  Login to Docker Hub (set DOCKERHUB_USERNAME & DOCKERHUB_TOKEN in repo Secrets)
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
