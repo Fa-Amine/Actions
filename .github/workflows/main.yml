@@ -8,7 +8,7 @@ on:
     branches: ["**"]
 
 jobs:
-${{ github.ref_name == 'main' }}
+  if: ${{ github.ref_name == 'main' }}
   test-backend:
     runs-on: ubuntu-24.04
     steps:
