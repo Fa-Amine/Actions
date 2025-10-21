@@ -10,7 +10,7 @@ build-and-push-docker-image:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    # 🔐 Docker Hub login (put creds in repo Secrets)
+    #  Docker Hub login (put creds in repo Secrets)
     - name: Login to DockerHub
       run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
