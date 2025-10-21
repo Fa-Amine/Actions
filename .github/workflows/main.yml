@@ -10,10 +10,6 @@ on:
 jobs:
   test-backend:
     runs-on: ubuntu-24.04
-    # expose the token as an env var so we can check it in "if:" (secrets.* not allowed in if)
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,21 +21,29 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # Build + Test + SonarCloud (uses your exact command / path)
+      # Build & test (supports repo root OR subfolder)
+      - name: Build and test with Maven (subfolder)
+        if: ${{ hashFiles('simple-api-student-main/pom.xml') != '' }}
+        run: mvn -B -ntp -f simple-api-student-main/pom.xml clean verify
+
+      - name: Build and test with Maven (repo root)
+        if: ${{ hashFiles('simple-api-student-main/pom.xml') == '' && hashFiles('pom.xml') != '' }}
+        run: mvn -B -ntp clean verify
+
+      # --- SonarCloud analysis (as you asked) ---
+      # Uses ./simple-api/pom.xml exactly like your command.
+      # Provide SONAR_PROJECT_KEY / SONAR_ORGANIZATION as repo Variables and SONAR_TOKEN as a Secret.
       - name: Build, test and analyze with SonarCloud
-        if: ${{ env.SONAR_TOKEN != '' && github.event_name != 'pull_request' }}
+        if: ${{ hashFiles('simple-api/pom.xml') != '' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn -B verify sonar:sonar \
-            -Dsonar.projectKey=<your-project-key> \
-            -Dsonar.organization=<your-organization> \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=${{ env.SONAR_TOKEN }} \
+            -Dsonar.projectKey="${{ vars.SONAR_PROJECT_KEY }}" \
+            -Dsonar.organization="${{ vars.SONAR_ORGANIZATION }}" \
+            -Dsonar.host.url="https://sonarcloud.io" \
+            -Dsonar.login="${{ env.SONAR_TOKEN }}" \
             --file ./simple-api/pom.xml
-
-      # Fallback for PRs or when SONAR_TOKEN is not set
-      - name: Build & test (no Sonar)
-        if: ${{ env.SONAR_TOKEN == '' || github.event_name == 'pull_request' }}
-        run: mvn -B -ntp -f ./simple-api/pom.xml clean verify
 
   build-and-push-docker-image:
     needs: test-backend
@@ -61,12 +65,12 @@ jobs:
       - name: Build image and push backend
         uses: docker/build-push-action@v6
         with:
-          context: ./simple-api-student-main          # keep your working build context
+          context: ./simple-api-student-main
           file: ./simple-api-student-main/Dockerfile
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:${{ github.sha }}
-          # push on master/main or manual runs
+          # push on master or main, and on manual runs
           push: ${{ github.ref_name == 'master' || github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
 
       # --- Database image (optional) ---
