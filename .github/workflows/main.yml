@@ -1,4 +1,4 @@
-name: CI devops 2025 maf
+name: CI devops 2025
 
 on:
   workflow_dispatch:                 # manual trigger
@@ -10,6 +10,10 @@ on:
 jobs:
   test-backend:
     runs-on: ubuntu-24.04
+    # expose the token as an env var so we can check it in "if:" (secrets.* not allowed in if)
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,40 +25,21 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # --- SonarCloud (project in ./simple-api) ---
-      - name: Build, test & analyze (simple-api)
-        if: ${{ hashFiles('simple-api/pom.xml') != '' && github.event_name != 'pull_request' && secrets.SONAR_TOKEN != '' }}
+      # Build + Test + SonarCloud (uses your exact command / path)
+      - name: Build, test and analyze with SonarCloud
+        if: ${{ env.SONAR_TOKEN != '' && github.event_name != 'pull_request' }}
         run: |
           mvn -B verify sonar:sonar \
             -Dsonar.projectKey=<your-project-key> \
             -Dsonar.organization=<your-organization> \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.login=${{ env.SONAR_TOKEN }} \
             --file ./simple-api/pom.xml
 
-      # --- SonarCloud (project in ./simple-api-student-main) ---
-      - name: Build, test & analyze (simple-api-student-main)
-        if: ${{ hashFiles('simple-api-student-main/pom.xml') != '' && github.event_name != 'pull_request' && secrets.SONAR_TOKEN != '' }}
-        run: |
-          mvn -B verify sonar:sonar \
-            -Dsonar.projectKey=<your-project-key> \
-            -Dsonar.organization=<your-organization> \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
-            --file ./simple-api-student-main/pom.xml
-
-      # --- Fallback: plain build on PRs or when SONAR_TOKEN is missing ---
+      # Fallback for PRs or when SONAR_TOKEN is not set
       - name: Build & test (no Sonar)
-        if: ${{ github.event_name == 'pull_request' || secrets.SONAR_TOKEN == '' }}
-        shell: bash
-        run: |
-          if [ -f simple-api/pom.xml ]; then
-            mvn -B -ntp -f simple-api/pom.xml clean verify
-          elif [ -f simple-api-student-main/pom.xml ]; then
-            mvn -B -ntp -f simple-api-student-main/pom.xml clean verify
-          else
-            mvn -B -ntp clean verify
-          fi
+        if: ${{ env.SONAR_TOKEN == '' || github.event_name == 'pull_request' }}
+        run: mvn -B -ntp -f ./simple-api/pom.xml clean verify
 
   build-and-push-docker-image:
     needs: test-backend
@@ -72,12 +57,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # --- Backend image (simple-api-student-main) ---
-      - name: Build & push backend (simple-api-student-main)
-        if: ${{ hashFiles('simple-api-student-main/Dockerfile') != '' }}
+      # --- Backend image ---
+      - name: Build image and push backend
         uses: docker/build-push-action@v6
         with:
-          context: ./simple-api-student-main
+          context: ./simple-api-student-main          # keep your working build context
           file: ./simple-api-student-main/Dockerfile
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
@@ -85,20 +69,8 @@ jobs:
           # push on master/main or manual runs
           push: ${{ github.ref_name == 'master' || github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
 
-      # --- Backend image (simple-api) ---
-      - name: Build & push backend (simple-api)
-        if: ${{ hashFiles('simple-api/Dockerfile') != '' && hashFiles('simple-api-student-main/Dockerfile') == '' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: ./simple-api
-          file: ./simple-api/Dockerfile
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:${{ github.sha }}
-          push: ${{ github.ref_name == 'master' || github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
-
       # --- Database image (optional) ---
-      - name: Build & push database
+      - name: Build image and push database
         if: ${{ hashFiles('database/Dockerfile') != '' }}
         uses: docker/build-push-action@v6
         with:
@@ -110,7 +82,7 @@ jobs:
           push: ${{ github.ref_name == 'master' || github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
 
       # --- Httpd image (optional) ---
-      - name: Build & push httpd
+      - name: Build image and push httpd
         if: ${{ hashFiles('web/Dockerfile') != '' }}
         uses: docker/build-push-action@v6
         with:
