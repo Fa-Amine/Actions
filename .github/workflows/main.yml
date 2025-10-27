@@ -38,12 +38,10 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn -B verify sonar:sonar \
-            -Dsonar.projectKey="${{ vars.SONAR_PROJECT_KEY }}" \
-            -Dsonar.organization="${{ vars.SONAR_ORGANIZATION }}" \
-            -Dsonar.host.url="https://sonarcloud.io" \
-            -Dsonar.login="${{ env.SONAR_TOKEN }}" \
-            --file ./simple-api/pom.xml
+          mvn -B verify sonar:sonar -Dsonar.projectKey=tp2bymaf 
+          -Dsonar.organization=TP2 -Dsonar.host.url=https://sonarcloud.io 
+          -Dsonar.login=${{ secrets.SONAR_TOKEN }}  --file ./simple-api/pom.xml
+
 
   build-and-push-docker-image:
     needs: test-backend
