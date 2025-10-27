@@ -33,16 +33,20 @@ jobs:
       # --- SonarCloud analysis (as you asked) ---
       # Uses ./simple-api/pom.xml exactly like your command.
       # Provide SONAR_PROJECT_KEY / SONAR_ORGANIZATION as repo Variables and SONAR_TOKEN as a Secret.
-      - name: Build, test and analyze with SonarCloud (student-main)
-        if: ${{ hashFiles('simple-api-student-main/pom.xml') != '' && github.event_name != 'pull_request' && secrets.SONAR_TOKEN != '' }}
-        
+            # --- SonarCloud analysis ---
+      # Scans the Maven project in ./simple-api (adjust the path if needed)
+      - name: Build, test and analyze with SonarCloud
+        if: ${{ hashFiles('simple-api/pom.xml') != '' && github.event_name != 'pull_request' && secrets.SONAR_TOKEN != '' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn -B -f ./simple-api-student-main/pom.xml \
+          mvn -B -f ./simple-api/pom.xml \
             verify sonar:sonar \
             -Dsonar.projectKey="tp2bymaf" \
             -Dsonar.organization="tp2" \
             -Dsonar.host.url="https://sonarcloud.io" \
             -Dsonar.login="$SONAR_TOKEN"
+
 
   build-and-push-docker-image:
     needs: test-backend
