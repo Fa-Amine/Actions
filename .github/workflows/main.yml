@@ -35,8 +35,7 @@ jobs:
       # Provide SONAR_PROJECT_KEY / SONAR_ORGANIZATION as repo Variables and SONAR_TOKEN as a Secret.
       - name: Build, test and analyze with SonarCloud (student-main)
         if: ${{ hashFiles('simple-api-student-main/pom.xml') != '' && github.event_name != 'pull_request' && secrets.SONAR_TOKEN != '' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        
         run: |
           mvn -B -f ./simple-api-student-main/pom.xml \
             verify sonar:sonar \
