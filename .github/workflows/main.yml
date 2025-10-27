@@ -1,9 +1,9 @@
 name: CI devops 2025
 
 on:
-  workflow_dispatch:                 # manual trigger
+  workflow_dispatch:               # manual trigger
   push:
-    branches: ["**"]                 # build on any branch
+    branches: ["**"]               # build on any branch
   pull_request:
     branches: ["**"]
 
@@ -21,32 +21,38 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # Build & test (supports repo root OR subfolder)
+      # Build & test if the module is in subfolder simple-api-student-main
       - name: Build and test with Maven (subfolder)
         if: ${{ hashFiles('simple-api-student-main/pom.xml') != '' }}
         run: mvn -B -ntp -f simple-api-student-main/pom.xml clean verify
 
+      # Fallback: Build & test from repo root if no subfolder pom
       - name: Build and test with Maven (repo root)
         if: ${{ hashFiles('simple-api-student-main/pom.xml') == '' && hashFiles('pom.xml') != '' }}
         run: mvn -B -ntp clean verify
 
-      # --- SonarCloud analysis (as you asked) ---
-      # Uses ./simple-api/pom.xml exactly like your command.
-      # Provide SONAR_PROJECT_KEY / SONAR_ORGANIZATION as repo Variables and SONAR_TOKEN as a Secret.
-            # --- SonarCloud analysis ---
-      # Scans the Maven project in ./simple-api (adjust the path if needed)
-      - name: Build, test and analyze with SonarCloud
-        if: ${{ hashFiles('simple-api/pom.xml') != '' && github.event_name != 'pull_request' && secrets.SONAR_TOKEN != '' }}
+      # --- SonarCloud analysis ---
+      # We only attempt Sonar if:
+      #   - this is NOT a pull_request
+      #   - the submodule pom exists
+      #
+      # We don't reference secrets.* in the if: to avoid parser drama.
+      - name: SonarCloud scan
+        if: ${{ hashFiles('simple-api-student-main/pom.xml') != '' && github.event_name != 'pull_request' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          mvn -B -f ./simple-api/pom.xml \
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "No SONAR_TOKEN secret configured, skipping SonarCloud analysis."
+            exit 0
+          fi
+
+          mvn -B -f simple-api-student-main/pom.xml \
             verify sonar:sonar \
             -Dsonar.projectKey="tp2bymaf" \
             -Dsonar.organization="tp2" \
             -Dsonar.host.url="https://sonarcloud.io" \
             -Dsonar.login="$SONAR_TOKEN"
-
 
   build-and-push-docker-image:
     needs: test-backend
@@ -73,7 +79,6 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/tp-devops-simple-api:${{ github.sha }}
-          # push on master or main, and on manual runs
           push: ${{ github.ref_name == 'master' || github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
 
       # --- Database image (optional) ---
