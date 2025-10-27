@@ -51,8 +51,8 @@ jobs:
           echo "SONAR_TOKEN is present. Running mvn verify sonar:sonar ..."
           mvn -B -f simple-api-student-main/pom.xml \
             verify sonar:sonar \
-            -Dsonar.projectKey="Fa-Amine_Actions" \
-            -Dsonar.organization="fa-amine" \
+            -Dsonar.projectKey="fa-amine" \
+            -Dsonar.organization="mohammedaminfarah" \
             -Dsonar.host.url="https://sonarcloud.io" \
             -Dsonar.login="$SONAR_TOKEN" \
           || {
